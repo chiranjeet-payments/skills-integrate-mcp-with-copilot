@@ -3,6 +3,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const loginToggle = document.getElementById("login-toggle");
+  const loginForm = document.getElementById("login-form");
+  const logoutButton = document.getElementById("logout-button");
+  let teacherCredentials = sessionStorage.getItem("teacherCredentials");
+
+  function updateTeacherControls() {
+    const loggedIn = Boolean(teacherCredentials);
+    loginToggle.classList.toggle("hidden", loggedIn);
+    loginForm.classList.add("hidden");
+    logoutButton.classList.toggle("hidden", !loggedIn);
+    signupForm.classList.toggle("hidden", !loggedIn);
+    document.querySelectorAll(".delete-btn").forEach((button) => {
+      button.classList.toggle("hidden", !loggedIn);
+    });
+  }
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -60,6 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
       document.querySelectorAll(".delete-btn").forEach((button) => {
         button.addEventListener("click", handleUnregister);
       });
+      updateTeacherControls();
     } catch (error) {
       activitiesList.innerHTML =
         "<p>Failed to load activities. Please try again later.</p>";
@@ -80,6 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
         )}/unregister?email=${encodeURIComponent(email)}`,
         {
           method: "DELETE",
+          headers: { Authorization: `Basic ${teacherCredentials}` },
         }
       );
 
@@ -155,6 +172,45 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  loginToggle.addEventListener("click", () => {
+    loginForm.classList.toggle("hidden");
+  });
+
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const username = document.getElementById("teacher-username").value;
+    const password = document.getElementById("teacher-password").value;
+    const encodedCredentials = btoa(`${username}:${password}`);
+
+    try {
+      const response = await fetch("/auth/login", {
+        headers: { Authorization: `Basic ${encodedCredentials}` },
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.detail || "Invalid teacher credentials");
+      }
+      teacherCredentials = encodedCredentials;
+      sessionStorage.setItem("teacherCredentials", teacherCredentials);
+      loginForm.reset();
+      messageDiv.textContent = result.message;
+      messageDiv.className = "success";
+      messageDiv.classList.remove("hidden");
+      updateTeacherControls();
+    } catch (error) {
+      messageDiv.textContent = error.message;
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+    }
+  });
+
+  logoutButton.addEventListener("click", () => {
+    teacherCredentials = null;
+    sessionStorage.removeItem("teacherCredentials");
+    updateTeacherControls();
+  });
+
   // Initialize app
+  updateTeacherControls();
   fetchActivities();
 });
